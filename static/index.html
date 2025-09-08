@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Изучение английского</title>
+    <link rel="stylesheet" href="/static/style.css" />
+  </head>
+  <body>
+    <div class="container">
+      <h1>🎓 Изучение английского</h1>
+
+      <!-- Навигация -->
+      <nav>
+        <button onclick="showSection('add-words')" class="nav-btn active">
+          Добавить слова
+        </button>
+        <button onclick="showSection('study')" class="nav-btn">Изучать</button>
+        <button onclick="showSection('words')" class="nav-btn">
+          Все слова
+        </button>
+        <button onclick="showSection('stats')" class="nav-btn">
+          Статистика
+        </button>
+      </nav>
+
+      <!-- Добавление слов -->
+      <section id="add-words" class="section active">
+        <h2>📚 Добавить слова из URL</h2>
+        <div class="form-group">
+          <input
+            type="url"
+            id="url-input"
+            placeholder="https://example.com"
+            required
+          />
+          <button onclick="processUrl()" class="btn-primary">
+            Обработать URL
+          </button>
+        </div>
+        <div id="url-result"></div>
+      </section>
+
+      <!-- Изучение -->
+      <section id="study" class="section">
+        <h2>🧠 Изучение слов</h2>
+        <div id="study-card" class="study-card">
+          <div id="word-display" class="word-display">
+            <p id="current-word">Нажмите "Следующее слово" для начала</p>
+          </div>
+          <div id="translations" class="translations" style="display: none">
+            <div class="translation-item">
+              <strong>Google:</strong> <span id="google-trans"></span>
+            </div>
+            <div class="translation-item">
+              <strong>Lingva:</strong> <span id="lingva-trans"></span>
+            </div>
+            <div class="translation-item">
+              <strong>MyMemory:</strong> <span id="mymemory-trans"></span>
+            </div>
+          </div>
+          <div id="study-controls" class="study-controls">
+            <button
+              onclick="showTranslation()"
+              id="show-btn"
+              class="btn-secondary"
+            >
+              Показать перевод
+            </button>
+            <div id="answer-buttons" style="display: none">
+              <button onclick="answerWord(0)" class="btn-difficulty">
+                Забыл
+              </button>
+              <button onclick="answerWord(1)" class="btn-difficulty">
+                Трудно
+              </button>
+              <button onclick="answerWord(2)" class="btn-difficulty">
+                Хорошо
+              </button>
+              <button onclick="answerWord(3)" class="btn-difficulty">
+                Легко
+              </button>
+              <button onclick="answerWord(4)" class="btn-difficulty">
+                Отлично
+              </button>
+              <button onclick="answerWord(5)" class="btn-difficulty">
+                Идеально
+              </button>
+            </div>
+          </div>
+        </div>
+        <button onclick="getNextWord()" class="btn-primary" id="next-word-btn">
+          Следующее слово
+        </button>
+      </section>
+
+      <!-- Все слова -->
+      <section id="words" class="section">
+        <h2>📖 Все слова</h2>
+        <button onclick="loadWords()" class="btn-primary">
+          Загрузить слова
+        </button>
+        <button onclick="clearWords()" class="btn-danger">
+          Удалить все слова
+        </button>
+        <div id="words-list"></div>
+      </section>
+
+      <!-- Статистика -->
+      <section id="stats" class="section">
+        <h2>📊 Статистика</h2>
+        <button onclick="loadStats()" class="btn-primary">
+          Обновить статистику
+        </button>
+        <div id="stats-display"></div>
+      </section>
+    </div>
+
+    <script src="/static/script.js"></script>
+  </body>
+</html>
