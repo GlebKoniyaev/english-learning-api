@@ -66,6 +66,11 @@ for column in columns_to_add:
         cursor.execute(f'ALTER TABLE words ADD COLUMN {column}')
     except sqlite3.OperationalError:
         pass
+# Create unique index on word to prevent duplicates
+try:
+    cursor.execute('CREATE UNIQUE INDEX IF NOT EXISTS idx_word ON words(word)')
+except sqlite3.OperationalError:
+    pass
 conn.commit()
 
 
@@ -138,7 +143,9 @@ def delete_item(item_id: int):
 def extract_english_words(text):
     # Extract words that are likely English (alphabetic, length > 2)
     words = re.findall(r'\b[a-zA-Z]{3,}\b', text)
-    return list(set(words))  # Remove duplicates
+    # Convert to lowercase and remove duplicates
+    words_lower = [word.lower() for word in words]
+    return list(set(words_lower))  # Remove duplicates
 
 
 async def translate_google(word):
@@ -194,7 +201,7 @@ async def process_url(request_data: dict):
         with db_lock:
             for word in words:
                 cursor.execute(
-                    'INSERT INTO words (word, url, difficulty_level, next_review_date, review_count, ease_factor, interval_days) VALUES (?, ?, 1, date("now"), 0, 2.5, 1)',
+                    'INSERT OR IGNORE INTO words (word, url, difficulty_level, next_review_date, review_count, ease_factor, interval_days) VALUES (?, ?, 1, date("now"), 0, 2.5, 1)',
                     (word, url))
             conn.commit()
 
