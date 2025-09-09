@@ -156,12 +156,13 @@ async function answerWord(quality) {
   if (!currentWordId) return;
 
   try {
-    const response = await fetch(
-      `/review_word/${currentWordId}?quality=${quality}`,
-      {
-        method: "POST",
-      }
-    );
+    const response = await fetch(`/review_word/${currentWordId}`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ quality: parseInt(quality) }),
+    });
 
     const data = await response.json();
 

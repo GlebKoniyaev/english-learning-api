@@ -95,16 +95,31 @@ class Word(BaseModel):
     interval_days: int = 1
 
 
-# In-memory storage
+class UrlModel(BaseModel):
+    url: str
+
+
+class ReviewModel(BaseModel):
+    quality: int
+
+    class Config:
+        schema_extra = {
+            "example": {
+                "quality": 3
+            }
+        }
+
+
+# In-memory storage for unused items, can be removed
 items: List[Item] = []
 
 
-@app.get("/items", response_model=List[Item])
+@app.get("/items", response_model=List[Item], summary="Get all items (example endpoint)")
 def read_items():
     return items
 
 
-@app.get("/items/{item_id}", response_model=Item)
+@app.get("/items/{item_id}", response_model=Item, summary="Get an item by ID (example endpoint)")
 def read_item(item_id: int):
     item = next((item for item in items if item.id == item_id), None)
     if item is None:
@@ -112,7 +127,7 @@ def read_item(item_id: int):
     return item
 
 
-@app.post("/items", response_model=Item)
+@app.post("/items", response_model=Item, summary="Create an item (example endpoint)")
 def create_item(item: Item):
     if any(i.id == item.id for i in items):
         raise HTTPException(
@@ -121,7 +136,7 @@ def create_item(item: Item):
     return item
 
 
-@app.put("/items/{item_id}", response_model=Item)
+@app.put("/items/{item_id}", response_model=Item, summary="Update an item (example endpoint)")
 def update_item(item_id: int, updated_item: Item):
     item = next((item for item in items if item.id == item_id), None)
     if item is None:
@@ -131,7 +146,7 @@ def update_item(item_id: int, updated_item: Item):
     return item
 
 
-@app.delete("/items/{item_id}")
+@app.delete("/items/{item_id}", summary="Delete an item (example endpoint)")
 def delete_item(item_id: int):
     item = next((item for item in items if item.id == item_id), None)
     if item is None:
@@ -148,51 +163,48 @@ def extract_english_words(text):
     return list(set(words_lower))  # Remove duplicates
 
 
-async def translate_google(word):
+async def translate_google(word: str, client: httpx.AsyncClient) -> Optional[str]:
     try:
         url = f"https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=ru&dt=t&q={word}"
-        async with httpx.AsyncClient() as client:
-            response = await client.get(url)
-            if response.status_code == 200:
-                data = response.json()
-                return data[0][0][0] if data and data[0] else None
-        return None
-    except:
+        response = await client.get(url)
+        response.raise_for_status()
+        data = response.json()
+        return data[0][0][0] if data and data[0] else None
+    except (httpx.RequestError, IndexError, json.JSONDecodeError) as e:
+        print(f"Google Translate error: {e}")
         return None
 
 
-async def translate_lingva(word):
+async def translate_lingva(word: str, client: httpx.AsyncClient) -> Optional[str]:
     try:
-        async with httpx.AsyncClient() as client:
-            response = await client.get(f'https://lingva.ml/api/v1/en/ru/{word}')
-            if response.status_code == 200:
-                data = response.json()
-                return data.get('translation')
-        return None
-    except:
+        response = await client.get(f'https://lingva.ml/api/v1/en/ru/{word}')
+        response.raise_for_status()
+        data = response.json()
+        return data.get('translation')
+    except (httpx.RequestError, json.JSONDecodeError) as e:
+        print(f"Lingva Translate error: {e}")
         return None
 
 
-async def translate_mymemory(word):
+async def translate_mymemory(word: str, client: httpx.AsyncClient) -> Optional[str]:
     try:
-        async with httpx.AsyncClient() as client:
-            response = await client.get(f'https://api.mymemory.translated.net/get?q={word}&langpair=en|ru')
-            if response.status_code == 200:
-                data = response.json()
-                return data.get('responseData', {}).get('translatedText')
-        return None
-    except:
+        response = await client.get(f'https://api.mymemory.translated.net/get?q={word}&langpair=en|ru')
+        response.raise_for_status()
+        data = response.json()
+        return data.get('responseData', {}).get('translatedText')
+    except (httpx.RequestError, json.JSONDecodeError) as e:
+        print(f"MyMemory Translate error: {e}")
         return None
 
 
 @app.post("/process_url")
-async def process_url(request_data: dict):
-    url = request_data.get("url")
-    if not url:
-        raise HTTPException(status_code=400, detail="URL is required")
+async def process_url(request_data: UrlModel):
+    url = request_data.url
     try:
-        response = requests.get(url)
-        response.raise_for_status()
+        async with httpx.AsyncClient() as client:
+            response = await client.get(url)
+            response.raise_for_status()
+
         soup = BeautifulSoup(response.text, 'html.parser')
         text = soup.get_text()
         words = extract_english_words(text)
@@ -206,8 +218,11 @@ async def process_url(request_data: dict):
             conn.commit()
 
         return {"message": f"Extracted and saved {len(words)} words from {url}"}
+    except httpx.RequestError as e:
+        raise HTTPException(status_code=400, detail=f"Error fetching URL: {e}")
     except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(
+            status_code=500, detail=f"An unexpected error occurred: {str(e)}")
 
 
 @app.get("/words", response_model=List[Word])
@@ -237,11 +252,12 @@ async def get_next_word():
 
         # Если переводы отсутствуют, переводим сейчас
         if not google or not lingva or not mymemory:
-            google, lingva, mymemory = await asyncio.gather(
-                translate_google(word),
-                translate_lingva(word),
-                translate_mymemory(word)
-            )
+            async with httpx.AsyncClient() as client:
+                google, lingva, mymemory = await asyncio.gather(
+                    translate_google(word, client),
+                    translate_lingva(word, client),
+                    translate_mymemory(word, client)
+                )
 
             # Сохраняем переводы в базу
             with db_lock:
@@ -257,11 +273,31 @@ async def get_next_word():
 
 
 @app.post("/review_word/{word_id}")
-def review_word(word_id: int, quality: int):
+def review_word(word_id: int, review: ReviewModel = None, quality: int = None):
     """
     Отметить качество ответа для слова
     quality: 0-5 (0=полностью забыл, 5=легко вспомнил)
     """
+    if review is not None:
+        quality_value = review.quality
+        print(
+            f"DEBUG: Received review from body: quality={quality_value}, type={type(quality_value)}")
+    elif quality is not None:
+        quality_value = quality
+        print(
+            f"DEBUG: Received quality from query param: quality={quality_value}, type={type(quality_value)}")
+    else:
+        from fastapi import HTTPException
+        raise HTTPException(
+            status_code=400, detail="Either provide quality in request body or as query parameter")
+
+    # Validate quality range
+    if not isinstance(quality_value, int) or quality_value < 0 or quality_value > 5:
+        from fastapi import HTTPException
+        raise HTTPException(
+            status_code=400, detail=f"Quality must be an integer between 0 and 5, got: {quality_value} (type: {type(quality_value)})")
+
+    quality = quality_value
     with db_lock:
         # Получить текущее слово
         cursor.execute(
