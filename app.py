@@ -156,11 +156,16 @@ def delete_item(item_id: int):
 
 
 def extract_english_words(text):
-    # Extract words that are likely English (alphabetic, length > 2)
+    # Извлекаем слова, которые похожи на английские (алфавитные, длина > 2), сохраняем порядок
     words = re.findall(r'\b[a-zA-Z]{3,}\b', text)
-    # Convert to lowercase and remove duplicates
-    words_lower = [word.lower() for word in words]
-    return list(set(words_lower))  # Remove duplicates
+    seen = set()
+    ordered_words = []
+    for word in words:
+        w = word.lower()
+        if w not in seen:
+            seen.add(w)
+            ordered_words.append(w)
+    return ordered_words
 
 
 async def translate_google(word: str, client: httpx.AsyncClient) -> Optional[str]:
